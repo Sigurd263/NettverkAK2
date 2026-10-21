@@ -1,0 +1,55 @@
+---
+# Statuskontroll; les resultatene manuelt.
+- name: Kontroller enhetenes IP-adresser og ruter
+  hosts: all
+  gather_facts: false
+  tasks:
+  - name: Les grensesnitt og rutetabell
+    cisco.ios.ios_command:
+      commands:
+      - show ip interface brief
+    register: resultat
+  - name: Vis resultat
+    ansible.builtin.debug:
+      var: resultat.stdout_lines
+- name: Kontroller OSPF
+  hosts: MSW1,R1,R2
+  gather_facts: false
+  tasks:
+  - name: Vis OSPF-naboer
+    cisco.ios.ios_command:
+      commands:
+      - show ip ospf neighbor
+      - show ip route ospf
+    register: resultat
+  - name: Vis resultat
+    ansible.builtin.debug:
+      var: resultat.stdout_lines
+- name: Kontroller klientgateway og DHCP
+  hosts: R1,R2
+  gather_facts: false
+  tasks:
+  - name: Vis klienttjenester
+    cisco.ios.ios_command:
+      commands:
+      - show standby brief
+      - show ip dhcp pool
+      - show ip dhcp binding
+    register: resultat
+  - name: Vis resultat
+    ansible.builtin.debug:
+      var: resultat.stdout_lines
+- name: Kontroller svitsjporter
+  hosts: MSW1,SW2,SW3
+  gather_facts: false
+  tasks:
+  - name: Vis VLAN og trunker
+    cisco.ios.ios_command:
+      commands:
+      - show vlan brief
+      - show interfaces trunk
+      - show etherchannel summary
+    register: resultat
+  - name: Vis resultat
+    ansible.builtin.debug:
+      var: resultat.stdout_lines

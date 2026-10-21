@@ -1,0 +1,73 @@
+---
+# R1: 10.1.0.2/24, gateway 10.1.0.1.
+# Alle oppgaver nedenfor bruker den nye IP-planen.
+# Gi0/0/1 bærer enhetens IP; Gi0/0/0 bærer bare klient-VLAN.
+# HSRP krever en konfigurert motpart for redundans. DHCP deler ut .11–.127.
+- name: Konfigurer R1
+  hosts: R1
+  gather_facts: false
+  vars:
+    device_ip: 10.1.0.2
+    subnet_mask: 255.255.255.0
+    gateway: 10.1.0.1
+    management_vlan: 99
+    core_port: GigabitEthernet0/0/1
+    lan_port: GigabitEthernet0/0/0
+    client_vlan: 10
+    client_ip: 10.1.10.2
+    client_network: 10.1.10.0
+    client_gateway: 10.1.10.1
+    dhcp_excluded:
+    - 10.1.10.1 10.1.10.10
+    - 10.1.10.128 10.1.10.254
+  tasks:
+  - name: Sett enhetens oppgitte IP på porten mot MSW1
+    cisco.ios.ios_config:
+      lines:
+      - description MSW1 - felles 10.1.0.0/24
+      - ip address {{ device_ip }} {{ subnet_mask }}
+      - no shutdown
+      parents: interface {{ core_port }}
+  - name: Aktiver trunk mot SW2
+    cisco.ios.ios_config:
+      lines:
+      - description SW2 - klienttrafikk
+      - no ip address
+      - no shutdown
+      parents: interface {{ lan_port }}
+  - name: Sett klientadresse og virtuell gateway
+    cisco.ios.ios_config:
+      lines:
+      - encapsulation dot1Q {{ client_vlan }}
+      - ip address {{ client_ip }} {{ subnet_mask }}
+      - standby {{ client_vlan }} ip {{ client_gateway }}
+      - standby {{ client_vlan }} priority 110
+      - standby {{ client_vlan }} preempt
+      parents: interface {{ lan_port }}.{{ client_vlan }}
+  - name: Reserver gateway og samarbeidspartnerens DHCP-område
+    cisco.ios.ios_config:
+      lines:
+      - ip dhcp excluded-address {{ item }}
+    loop: '{{ dhcp_excluded }}'
+  - name: Del ut adresser fra det nye klientnettet
+    cisco.ios.ios_config:
+      lines:
+      - network {{ client_network }} {{ subnet_mask }}
+      - default-router {{ client_gateway }}
+      parents: ip dhcp pool VLAN{{ client_vlan }}
+  - name: Sett ekstern standardrute
+    cisco.ios.ios_config:
+      lines:
+      - ip route 0.0.0.0 0.0.0.0 {{ gateway }}
+  - name: Annonser fellesnett og klientnett i OSPF
+    cisco.ios.ios_config:
+      lines:
+      - router-id {{ device_ip }}
+      - passive-interface default
+      - no passive-interface {{ core_port }}
+      - network 10.1.0.0 0.0.0.255 area 0
+      - network {{ client_network }} 0.0.0.255 area 0
+      parents: router ospf 1
+  - name: Lagre oppsettet
+    cisco.ios.ios_config:
+      save_when: modified

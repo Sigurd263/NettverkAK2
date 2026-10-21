@@ -1,0 +1,71 @@
+---
+# SW2: 10.1.0.101/24, gateway 10.1.0.1.
+# Alle oppgaver nedenfor bruker den nye IP-planen.
+# Kontroller de faktiske portnavnene før kjøring; SW3 forutsetter Gi1/0/x.
+- name: Konfigurer SW2
+  hosts: SW2
+  gather_facts: false
+  vars:
+    device_ip: 10.1.0.101
+    subnet_mask: 255.255.255.0
+    gateway: 10.1.0.1
+    management_vlan: 99
+    vlans:
+    - id: 10
+      name: KLIENTER_10
+    - id: 20
+      name: KLIENTER_20
+    - id: 99
+      name: ADMINISTRASJON
+    trunks:
+    - port: FastEthernet0/2
+      vlans: 10,20,99
+      description: SW3 Gi1/0/3
+    - port: FastEthernet0/3
+      vlans: '10'
+      description: R1 Gi0/0/0
+    - port: FastEthernet0/4
+      vlans: '20'
+      description: R2 Gi0/0/0
+    access_ports:
+    - port: FastEthernet0/5
+      vlan: 99
+      description: Ekstern gateway 10.1.0.1
+  tasks:
+  - name: Opprett VLAN
+    cisco.ios.ios_config:
+      lines:
+      - name {{ item.name }}
+      parents: vlan {{ item.id }}
+    loop: '{{ vlans }}'
+  - name: Konfigurer trunk for hver motpart
+    cisco.ios.ios_config:
+      lines:
+      - description {{ item.description }}
+      - switchport mode trunk
+      - switchport trunk allowed vlan {{ item.vlans }}
+      - no shutdown
+      parents: interface {{ item.port }}
+    loop: '{{ trunks }}'
+  - name: Plasser accessportene i riktig VLAN
+    cisco.ios.ios_config:
+      lines:
+      - description {{ item.description }}
+      - switchport mode access
+      - switchport access vlan {{ item.vlan }}
+      - no shutdown
+      parents: interface {{ item.port }}
+    loop: '{{ access_ports }}'
+  - name: Sett svitsjens oppgitte IP
+    cisco.ios.ios_config:
+      lines:
+      - ip address {{ device_ip }} {{ subnet_mask }}
+      - no shutdown
+      parents: interface Vlan{{ management_vlan }}
+  - name: Sett gateway
+    cisco.ios.ios_config:
+      lines:
+      - ip default-gateway {{ gateway }}
+  - name: Lagre oppsettet
+    cisco.ios.ios_config:
+      save_when: modified

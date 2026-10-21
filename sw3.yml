@@ -1,0 +1,88 @@
+---
+# SW3: 10.1.0.102/24, gateway 10.1.0.1.
+# Alle oppgaver nedenfor bruker den nye IP-planen.
+# Kontroller de faktiske portnavnene før kjøring; SW3 forutsetter Gi1/0/x.
+- name: Konfigurer SW3
+  hosts: SW3
+  gather_facts: false
+  vars:
+    device_ip: 10.1.0.102
+    subnet_mask: 255.255.255.0
+    gateway: 10.1.0.1
+    management_vlan: 99
+    vlans:
+    - id: 10
+      name: KLIENTER_10
+    - id: 20
+      name: KLIENTER_20
+    - id: 99
+      name: ADMINISTRASJON
+    trunks:
+    - port: GigabitEthernet1/0/3
+      vlans: 10,20,99
+      description: SW2 Fa0/2
+    access_ports:
+    - port: GigabitEthernet1/0/1
+      vlan: 10
+      description: Klient VLAN 10
+    - port: GigabitEthernet1/0/2
+      vlan: 20
+      description: Klient VLAN 20
+    enable_etherchannel: false
+    ec_ports: GigabitEthernet1/0/4 - 5
+    ec_group: 1
+    ec_allowed_vlans: 10,20
+  tasks:
+  - name: Opprett VLAN
+    cisco.ios.ios_config:
+      lines:
+      - name {{ item.name }}
+      parents: vlan {{ item.id }}
+    loop: '{{ vlans }}'
+  - name: Konfigurer trunk for hver motpart
+    cisco.ios.ios_config:
+      lines:
+      - description {{ item.description }}
+      - switchport mode trunk
+      - switchport trunk allowed vlan {{ item.vlans }}
+      - no shutdown
+      parents: interface {{ item.port }}
+    loop: '{{ trunks }}'
+  - name: Plasser accessportene i riktig VLAN
+    cisco.ios.ios_config:
+      lines:
+      - description {{ item.description }}
+      - switchport mode access
+      - switchport access vlan {{ item.vlan }}
+      - no shutdown
+      parents: interface {{ item.port }}
+    loop: '{{ access_ports }}'
+  - name: Sett svitsjens oppgitte IP
+    cisco.ios.ios_config:
+      lines:
+      - ip address {{ device_ip }} {{ subnet_mask }}
+      - no shutdown
+      parents: interface Vlan{{ management_vlan }}
+  - name: Sett gateway
+    cisco.ios.ios_config:
+      lines:
+      - ip default-gateway {{ gateway }}
+  - name: Opprett valgfri LACP-kanal mot samarbeidspartner
+    cisco.ios.ios_config:
+      lines:
+      - switchport mode trunk
+      - switchport trunk allowed vlan {{ ec_allowed_vlans }}
+      - channel-group {{ ec_group }} mode active
+      - no shutdown
+      parents: interface range {{ ec_ports }}
+    when: enable_etherchannel | bool
+  - name: Tillat bare klient-VLAN over samarbeidsforbindelsen
+    cisco.ios.ios_config:
+      lines:
+      - switchport mode trunk
+      - switchport trunk allowed vlan {{ ec_allowed_vlans }}
+      parents: interface Port-channel{{ ec_group }}
+    when: enable_etherchannel | bool
+  - name: Lagre oppsettet
+    cisco.ios.ios_config:
+      save_when: modified

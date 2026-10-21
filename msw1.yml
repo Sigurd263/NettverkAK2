@@ -1,0 +1,61 @@
+---
+# MSW1: 10.1.0.100/24, gateway 10.1.0.1.
+# Alle oppgaver nedenfor bruker den nye IP-planen.
+# Gi1/0/1 og Gi1/0/2 er nå L2-accessporter, ikke separate rutede porter.
+- name: Konfigurer MSW1
+  hosts: MSW1
+  gather_facts: false
+  vars:
+    device_ip: 10.1.0.100
+    subnet_mask: 255.255.255.0
+    gateway: 10.1.0.1
+    management_vlan: 99
+    access_ports:
+    - port: GigabitEthernet1/0/1
+      description: R1 Gi0/0/1
+    - port: GigabitEthernet1/0/2
+      description: R2 Gi0/0/1
+    - port: GigabitEthernet1/0/3
+      description: Ansible-PC
+
+  tasks:
+  - name: Aktiver ruting
+    cisco.ios.ios_config:
+      lines:
+      - ip routing
+  - name: Opprett administrasjonsnettet
+    cisco.ios.ios_config:
+      lines:
+      - name ADMINISTRASJON
+      parents: vlan {{ management_vlan }}
+  - name: Koble R1, R2 og PC til administrasjonsnettet
+    cisco.ios.ios_config:
+      lines:
+      - description {{ item.description }}
+      - switchport
+      - switchport mode access
+      - switchport access vlan {{ management_vlan }}
+      - no shutdown
+      parents: interface {{ item.port }}
+    loop: '{{ access_ports }}'
+  - name: Sett MSW1-adressen på VLAN-grensesnittet
+    cisco.ios.ios_config:
+      lines:
+      - ip address {{ device_ip }} {{ subnet_mask }}
+      - no shutdown
+      parents: interface Vlan{{ management_vlan }}
+  - name: Sett ekstern standardrute
+    cisco.ios.ios_config:
+      lines:
+      - ip route 0.0.0.0 0.0.0.0 {{ gateway }}
+  - name: Utveksle ruter over det felles nettet
+    cisco.ios.ios_config:
+      lines:
+      - router-id {{ device_ip }}
+      - passive-interface default
+      - no passive-interface Vlan{{ management_vlan }}
+      - network 10.1.0.0 0.0.0.255 area 0
+      parents: router ospf 1
+  - name: Lagre oppsettet
+    cisco.ios.ios_config:
+      save_when: modified
