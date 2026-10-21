@@ -8,7 +8,7 @@ Legg alle filene i samme mappe, for eksempel `nettverk`.
 
 | Filer | Bruk |
 | --- | --- |
-| `ssh_setup.py` | Klargjør SSH via konsoll |
+| `python.py` | Klargjør SSH via konsoll |
 | `ansible.cfg` | Innstillinger for Ansible |
 | `hosts.ini` | IP-adresser og innlogging |
 | `msw1.yml` | Hovedsvitsj og OSPF |
@@ -79,7 +79,7 @@ ansible-galaxy collection install cisco.ios ansible.netcommon
 Koble konsollkabelen til én enhet om gangen og kjør:
 
 ```bash
-python ssh_setup.py
+python3 python.py
 ```
 
 Velg riktig enhetstype, IP-adresse og grensesnitt fra IP-planen. Bruk for eksempel domenet `lab.local`. Konsollporten er vanligvis `/dev/ttyUSB0`, men må passe maskinen din.
